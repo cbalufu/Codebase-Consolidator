@@ -5,14 +5,15 @@ namespace CodebaseConsolidator;
 
 /// <summary>
 /// A helper class to parse .gitignore files and determine if a path should be ignored.
+/// Fixed version that properly handles Microsoft.Extensions.FileSystemGlobbing behavior.
 /// </summary>
-public class GitIgnoreParser
+public class GitIgnoreParserFixed
 {
     private readonly string _rootDirectory;
     private readonly List<string> _excludePatterns;
     private readonly List<string> _includePatterns;
 
-    public GitIgnoreParser(string rootDirectory)
+    public GitIgnoreParserFixed(string rootDirectory)
     {
         _rootDirectory = Path.GetFullPath(rootDirectory);
         _excludePatterns = new List<string>();
@@ -57,9 +58,7 @@ public class GitIgnoreParser
                 .Select(line => line.Trim())
                 .Where(line => !string.IsNullOrEmpty(line) && !line.StartsWith('#'));
 
-            // FileSystemGlobbing's Matcher doesn't have a concept of a base directory per pattern.
-            // We can simulate it for top-level root patterns like `/logs` by prepending `**/`.
-            // This is a simplification but covers the most common cases effectively.
+            // Process patterns similar to original but store them differently
             var processedPatterns = patterns.Select(p => p.StartsWith('/') ? p.Substring(1) : $"**/{p}");
             _excludePatterns.AddRange(processedPatterns);
         }

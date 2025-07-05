@@ -390,3 +390,7 @@ tmp/
 # Application specific
 test-output.txt
 *-codebase.txt
+
+# Test directories and cleanup
+test-multiproject/
+test-*/

@@ -46,6 +46,10 @@ public sealed class ConsolidateSettings : CommandSettings
     [Description("Model to use for token estimation (e.g., 'gpt-4', 'gpt-3.5-turbo').")]
     [DefaultValue("gpt-4")]
     public string TokenModel { get; set; } = "gpt-4";
+
+    [CommandOption("--split-by")]
+    [Description("Splits the output into multiple files based on project markers (e.g., 'csproj', 'package.json', 'pom.xml', 'composer.json', 'pyproject.toml'). If not set, creates a single file.")]
+    public string? SplitBy { get; set; }
 }
 
 public sealed class ConsolidateCommand : AsyncCommand<ConsolidateSettings>
@@ -63,6 +67,35 @@ public sealed class ConsolidateCommand : AsyncCommand<ConsolidateSettings>
             return -1;
         }
 
+        // Check for project splitting strategy
+        IProjectDiscoveryStrategy? strategy = null;
+        if (!string.IsNullOrEmpty(settings.SplitBy))
+        {
+            strategy = settings.SplitBy.ToLowerInvariant() switch
+            {
+                "csproj" => new CSharpProjectStrategy(),
+                "package.json" => new NodeJsProjectStrategy(),
+                "pom.xml" => new MavenProjectStrategy(),
+                "composer.json" => new PhpComposerProjectStrategy(),
+                "pyproject.toml" => new PythonProjectStrategy(),
+                _ => null
+            };
+
+            if (strategy == null)
+            {
+                AnsiConsole.MarkupLine($"[red]Error: Unknown split strategy '{settings.SplitBy}'.[/]");
+                AnsiConsole.MarkupLine("[yellow]Supported strategies: csproj, package.json, pom.xml, composer.json, pyproject.toml[/]");
+                return -1;
+            }
+
+            // Validate settings for project splitting
+            if (settings.CopyToClipboard)
+            {
+                AnsiConsole.MarkupLine("[red]Error: --clipboard cannot be used with --split-by. Multiple projects cannot be copied to clipboard.[/]");
+                return -1;
+            }
+        }
+
         var outputFilePath = string.IsNullOrWhiteSpace(settings.OutputFile)
             ? Path.Combine(Directory.GetCurrentDirectory(), $"{new DirectoryInfo(projectRoot).Name}-codebase.txt")
             : Path.GetFullPath(settings.OutputFile);
@@ -74,7 +107,13 @@ public sealed class ConsolidateCommand : AsyncCommand<ConsolidateSettings>
         }
 
         AnsiConsole.MarkupLine($"[bold]Project Root:[/] [cyan]{projectRoot}[/]");
-        if (!settings.CopyToClipboard)
+
+        if (strategy != null)
+        {
+            AnsiConsole.MarkupLine($"[bold]Split Strategy:[/] [yellow]{strategy.StrategyName}[/]");
+            AnsiConsole.MarkupLine($"[bold]Output Pattern:[/] [cyan]{{project-name}}-codebase.txt[/]");
+        }
+        else if (!settings.CopyToClipboard)
         {
             AnsiConsole.MarkupLine($"[bold]Output File:[/] [cyan]{outputFilePath}[/]");
         }
@@ -86,7 +125,187 @@ public sealed class ConsolidateCommand : AsyncCommand<ConsolidateSettings>
 
         var stopwatch = Stopwatch.StartNew();
 
-        // 2. Discover and Filter Files
+        // 2. Discover and Filter Files/Projects
+        if (strategy != null)
+        {
+            return await ProcessWithProjectSplitting(strategy, projectRoot, settings, stopwatch);
+        }
+        else
+        {
+            return await ProcessSingleFile(projectRoot, outputFilePath, settings, stopwatch);
+        }
+    }
+
+    private async Task<int> ProcessWithProjectSplitting(IProjectDiscoveryStrategy strategy, string projectRoot, ConsolidateSettings settings, Stopwatch stopwatch)
+    {
+        Dictionary<string, List<string>> projects = new();
+
+        await AnsiConsole.Status()
+            .StartAsync($"Discovering {strategy.StrategyName} projects...", async ctx =>
+            {
+                ctx.Spinner(Spinner.Known.Dots);
+                var gitIgnoreParser = new GitIgnoreParser(projectRoot);
+                gitIgnoreParser.AddPatterns(settings.AdditionalExclusions);
+                gitIgnoreParser.AddIncludePatterns(settings.AdditionalInclusions);
+
+                projects = strategy.DiscoverProjects(projectRoot, gitIgnoreParser);
+
+                // Filter binary files if needed
+                if (!settings.IncludeBinary)
+                {
+                    foreach (var projectName in projects.Keys.ToList())
+                    {
+                        var filteredFiles = new List<string>();
+                        foreach (var file in projects[projectName])
+                        {
+                            if (!await IsBinaryFile(file))
+                            {
+                                filteredFiles.Add(file);
+                            }
+                            else
+                            {
+                                Log.Debug("Skipping binary file: {File}", file);
+                            }
+                        }
+                        projects[projectName] = filteredFiles;
+                    }
+                }
+            });
+
+        if (projects.Count == 0)
+        {
+            AnsiConsole.MarkupLine($"[yellow]Warning: No {strategy.StrategyName} projects found in the directory.[/]");
+            return 0;
+        }
+
+        var totalFiles = projects.Values.Sum(files => files.Count);
+        AnsiConsole.MarkupLine($"[green]✅ Found {projects.Count} projects with {totalFiles} total files.[/]\n");
+
+        // Handle dry-run mode
+        if (settings.DryRun)
+        {
+            AnsiConsole.MarkupLine("[bold yellow]-- DRY RUN MODE --[/]");
+            AnsiConsole.MarkupLine($"[yellow]The following {strategy.StrategyName} projects would be created:[/]\n");
+
+            var root = new Tree($"[cyan]Projects ({projects.Count} found)[/]");
+
+            foreach (var (projectName, files) in projects.OrderBy(p => p.Key))
+            {
+                var projectNode = root.AddNode($"[blue]{projectName}[/] [dim]({files.Count} files)[/]");
+
+                foreach (var file in files.Take(10)) // Show first 10 files
+                {
+                    var relativePath = Path.GetRelativePath(projectRoot, file).Replace('\\', '/');
+                    projectNode.AddNode($"[green]{relativePath}[/]");
+                }
+
+                if (files.Count > 10)
+                {
+                    projectNode.AddNode($"[dim]... and {files.Count - 10} more files[/]");
+                }
+            }
+
+            AnsiConsole.Write(root);
+            stopwatch.Stop();
+            AnsiConsole.MarkupLine($"\n[dim]Dry run completed in {stopwatch.Elapsed.TotalSeconds:F2} seconds.[/]");
+            return 0;
+        }
+
+        // 3. Process each project
+        var results = new List<(string ProjectName, string OutputPath, int FileCount, int TokenCount)>();
+
+        await AnsiConsole.Progress()
+            .Columns(new ProgressBarColumn(), new PercentageColumn(), new SpinnerColumn(), new TaskDescriptionColumn())
+            .StartAsync(async ctx =>
+            {
+                var overallTask = ctx.AddTask("[green]Processing projects[/]", new ProgressTaskSettings { MaxValue = projects.Count });
+
+                foreach (var (projectName, files) in projects.OrderBy(p => p.Key))
+                {
+                    overallTask.Description = $"Processing project [blue]{projectName}[/]";
+
+                    var outputPath = Path.Combine(Directory.GetCurrentDirectory(), $"{projectName}-codebase.txt");
+
+                    var consolidatedContent = new StringBuilder();
+
+                    foreach (var file in files)
+                    {
+                        var relativePath = Path.GetRelativePath(projectRoot, file).Replace('\\', '/');
+
+                        consolidatedContent.AppendLine("==================================================");
+                        consolidatedContent.AppendLine($"File: {relativePath}");
+                        consolidatedContent.AppendLine("==================================================");
+                        consolidatedContent.AppendLine();
+
+                        try
+                        {
+                            var content = await File.ReadAllTextAsync(file);
+                            consolidatedContent.AppendLine(content);
+                        }
+                        catch (Exception ex)
+                        {
+                            Log.Warning(ex, "Could not read file {File}, inserting error message.", file);
+                            consolidatedContent.AppendLine($"[ERROR: Could not read file. Reason: {ex.Message}]");
+                        }
+
+                        consolidatedContent.AppendLine("\n\n");
+                    }
+
+                    await File.WriteAllTextAsync(outputPath, consolidatedContent.ToString());
+
+                    // Calculate token count
+                    int tokenCount = 0;
+                    try
+                    {
+                        var encoding = TiktokenSharp.TikToken.GetEncoding("cl100k_base");
+                        tokenCount = encoding.Encode(consolidatedContent.ToString()).Count;
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Could not calculate token count for project {Project}.", projectName);
+                    }
+
+                    results.Add((projectName, outputPath, files.Count, tokenCount));
+                    overallTask.Increment(1);
+                }
+            });
+
+        stopwatch.Stop();
+
+        // 4. Display results summary
+        AnsiConsole.MarkupLine($"\n[bold green]✅ Project splitting complete in {stopwatch.Elapsed.TotalSeconds:F2} seconds.[/]");
+
+        var summaryTable = new Table().Border(TableBorder.Rounded);
+        summaryTable.AddColumn(new TableColumn("[bold]Project[/]").Width(25));
+        summaryTable.AddColumn(new TableColumn("[bold]Files[/]").Width(8));
+        summaryTable.AddColumn(new TableColumn("[bold]Tokens[/]").Width(12));
+        summaryTable.AddColumn(new TableColumn("[bold]Output File[/]"));
+
+        foreach (var (projectName, outputPath, fileCount, tokenCount) in results.OrderBy(r => r.ProjectName))
+        {
+            var tokenDisplay = tokenCount > 0 ? $"[yellow]{tokenCount:N0}[/]" : "[dim]N/A[/]";
+            summaryTable.AddRow(
+                $"[cyan]{projectName}[/]",
+                $"[green]{fileCount:N0}[/]",
+                tokenDisplay,
+                $"[blue]{Path.GetFileName(outputPath)}[/]"
+            );
+        }
+
+        AnsiConsole.Write(summaryTable);
+
+        var totalTokens = results.Sum(r => r.TokenCount);
+        if (totalTokens > 0)
+        {
+            AnsiConsole.MarkupLine($"\n[bold]Total estimated tokens:[/] [yellow]{totalTokens:N0}[/] [dim]({settings.TokenModel})[/]");
+        }
+
+        return 0;
+    }
+
+    private async Task<int> ProcessSingleFile(string projectRoot, string outputFilePath, ConsolidateSettings settings, Stopwatch stopwatch)
+    {
+        // Original single-file logic
         List<string> filesToProcess = new();
         await AnsiConsole.Status()
             .StartAsync("Discovering and filtering files...", async ctx =>
@@ -200,7 +419,7 @@ public sealed class ConsolidateCommand : AsyncCommand<ConsolidateSettings>
             // 4. Calculate token count
             try
             {
-                var encoding = TiktokenSharp.TikToken.GetEncoding("cl100k_base"); // Use the encoding name directly
+                var encoding = TiktokenSharp.TikToken.GetEncoding("cl100k_base");
                 tokenCount = encoding.Encode(consolidatedContent).Count;
             }
             catch (Exception ex)
