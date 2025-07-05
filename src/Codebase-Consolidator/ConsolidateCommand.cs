@@ -48,7 +48,7 @@ public sealed class ConsolidateSettings : CommandSettings
     public string TokenModel { get; set; } = "gpt-4";
 
     [CommandOption("--split-by")]
-    [Description("Splits the output into multiple files based on project markers (e.g., 'csproj', 'package.json', 'pom.xml', 'composer.json', 'pyproject.toml'). If not set, creates a single file.")]
+    [Description("Splits the output into multiple files based on project markers (e.g., 'csproj', 'package.json', 'pom.xml', 'composer.json', 'pyproject.toml', 'build.gradle'). If not set, creates a single file.")]
     public string? SplitBy { get; set; }
 }
 
@@ -78,13 +78,14 @@ public sealed class ConsolidateCommand : AsyncCommand<ConsolidateSettings>
                 "pom.xml" => new MavenProjectStrategy(),
                 "composer.json" => new PhpComposerProjectStrategy(),
                 "pyproject.toml" => new PythonProjectStrategy(),
+                "build.gradle" => new AndroidGradleProjectStrategy(),
                 _ => null
             };
 
             if (strategy == null)
             {
                 AnsiConsole.MarkupLine($"[red]Error: Unknown split strategy '{settings.SplitBy}'.[/]");
-                AnsiConsole.MarkupLine("[yellow]Supported strategies: csproj, package.json, pom.xml, composer.json, pyproject.toml[/]");
+                AnsiConsole.MarkupLine("[yellow]Supported strategies: csproj, package.json, pom.xml, composer.json, pyproject.toml, build.gradle[/]");
                 return -1;
             }
 

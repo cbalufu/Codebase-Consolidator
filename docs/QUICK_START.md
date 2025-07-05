@@ -86,6 +86,7 @@ consolidate . --include "**/appsettings*.json" --include "**/*.config"
 # Split by technology
 consolidate . --split-by csproj     # Creates separate files for each C# project
 consolidate . --split-by package.json  # Creates separate files for each Node.js project
+consolidate . --split-by build.gradle  # Creates separate files for each Android/Gradle project
 ```
 
 ## Tips and Tricks
@@ -139,4 +140,10 @@ consolidate ./full-stack-solution --split-by package.json
 ```bash
 # Optimize for AI context limits
 consolidate . --clipboard --token-model gpt-4 --exclude "**/*.min.js" --exclude "**/*.map"
+```
+
+### Android/Gradle Project
+```bash
+# Consolidate an Android project, excluding build outputs
+consolidate ./my-android-app --exclude "**/build/**" --exclude "**/.gradle/**" --exclude "**/app/build/**"
 ```

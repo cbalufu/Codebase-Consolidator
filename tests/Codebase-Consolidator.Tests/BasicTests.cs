@@ -235,4 +235,17 @@ public class BasicTests
             }
         }
     }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldHaveCorrectStrategyName()
+    {
+        // Arrange
+        var strategy = new AndroidGradleProjectStrategy();
+
+        // Act
+        var name = strategy.StrategyName;
+
+        // Assert
+        Assert.Equal("build.gradle", name);
+    }
 }

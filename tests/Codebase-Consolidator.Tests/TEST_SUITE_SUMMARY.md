@@ -4,13 +4,13 @@ This document summarizes the comprehensive test suite created for the Codebase C
 
 ## Overview
 
-The test suite consists of **46 tests** across multiple test classes, providing comprehensive coverage of the application's functionality. All tests are currently **passing**.
+The test suite consists of **54 tests** across multiple test classes, providing comprehensive coverage of the application's functionality. All tests are currently **passing**.
 
 ## Test Classes
 
-### 1. BasicTests.cs (10 tests)
+### 1. BasicTests.cs (11 tests)
 - Tests basic instantiation and functionality of core components
-- Validates project discovery strategy names
+- Validates project discovery strategy names (including Android/Gradle)
 - Tests default settings values
 - Includes integration tests for project discovery
 
@@ -30,24 +30,25 @@ The test suite consists of **46 tests** across multiple test classes, providing 
 - Validates proper handling of exclude and include patterns
 - Tests default ignore patterns
 
-### 5. ProjectDiscoveryTests.cs (8 tests)
+### 5. ProjectDiscoveryTests.cs (12 tests)
 - Comprehensive tests for all project discovery strategies:
   - C# (.csproj)
   - Node.js (package.json)
   - Maven (pom.xml)
   - PHP Composer (composer.json)
   - Python (pyproject.toml)
+  - Android/Gradle (build.gradle)
 - Tests project name extraction from configuration files
 - Tests fallback behavior for malformed configuration files
 - Tests .gitignore integration
 
-### 6. EdgeCaseTests.cs (10 tests)
+### 6. EdgeCaseTests.cs (13 tests)
 - Tests edge cases and error conditions:
   - Empty .gitignore files
   - Comments and whitespace in .gitignore
   - Non-existent .gitignore files
   - Empty directories
-  - Malformed configuration files (package.json, pom.xml, composer.json)
+  - Malformed configuration files (package.json, pom.xml, composer.json, build.gradle)
   - Special characters in paths
   - Very long paths
   - Symbolic links (where supported)
@@ -70,11 +71,11 @@ The test suite consists of **46 tests** across multiple test classes, providing 
 - Use `AddInclude` on the exclude matcher to test if a file matches an exclude pattern
 
 ### 2. Enhanced Test Coverage
-- **Before**: 10 basic tests with 2 failing
-- **After**: 46 comprehensive tests, all passing
-- Added edge case testing
-- Added integration testing
-- Added error condition testing
+- **Before**: 40 comprehensive tests (all passing)
+- **After**: 54 comprehensive tests (all passing)
+- Added Android/Gradle project discovery support with 4 new tests
+- Added 3 edge case tests for Android/Gradle malformed configuration handling
+- Added comprehensive project name extraction testing for Android projects
 
 ### 3. Fixed Project Discovery Tests
 **Issue**: NodeJS project strategy test was expecting directory name instead of extracted project name from package.json.

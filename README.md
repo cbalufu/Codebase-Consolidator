@@ -89,6 +89,9 @@ consolidate . --split-by composer.json
 
 # Split by Python projects
 consolidate . --split-by pyproject.toml
+
+# Split by Android/Gradle projects
+consolidate . --split-by build.gradle
 ```
 
 ### AI Assistant Integration
@@ -111,6 +114,7 @@ consolidate . --token-model gemini-2.5-pro
 | **Java Maven** | `pom.xml` | Includes Java source and Maven configuration |
 | **PHP Composer** | `composer.json` | Includes PHP source and Composer files |
 | **Python** | `pyproject.toml` | Includes Python source and configuration |
+| **Android/Gradle** | `build.gradle` | Includes Java/Kotlin, Android resources, Gradle config |
 
 ## 📋 Command Reference
 
@@ -127,7 +131,7 @@ consolidate . --token-model gemini-2.5-pro
 | `--dry-run` | List files without creating output |
 | `-c, --clipboard` | Copy to clipboard instead of file |
 | `--token-model <MODEL>` | Model for token estimation (default: gpt-4) |
-| `--split-by <TYPE>` | Split output by project type |
+| `--split-by <TYPE>` | Split output by project type (`csproj`, `package.json`, `pom.xml`, `composer.json`, `pyproject.toml`, `build.gradle`) |
 
 ### Supported Token Models
 - `gpt-4`, `gpt-4o`, `gpt-4-turbo`

@@ -443,4 +443,176 @@ description = ""An awesome Python application""";
             }
         }
     }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldDiscoverBasicProject()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var projectDir = Path.Combine(tempDir, "MyAndroidApp");
+            Directory.CreateDirectory(projectDir);
+
+            // Create a basic build.gradle file
+            var buildGradlePath = Path.Combine(projectDir, "build.gradle");
+            var buildGradleContent = @"
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 34
+    defaultConfig {
+        applicationId ""com.example.myapp""
+        minSdkVersion 21
+        targetSdkVersion 34
+    }
+}";
+            File.WriteAllText(buildGradlePath, buildGradleContent);
+
+            // Create Android manifest
+            var manifestDir = Path.Combine(projectDir, "src", "main");
+            Directory.CreateDirectory(manifestDir);
+            var manifestPath = Path.Combine(manifestDir, "AndroidManifest.xml");
+            var manifestContent = @"<?xml version=""1.0"" encoding=""utf-8""?>
+<manifest xmlns:android=""http://schemas.android.com/apk/res/android"">
+    <application android:label=""My Android App"">
+        <activity android:name="".MainActivity"" />
+    </application>
+</manifest>";
+            File.WriteAllText(manifestPath, manifestContent);
+
+            // Create Java source file
+            var javaDir = Path.Combine(manifestDir, "java", "com", "example", "myapp");
+            Directory.CreateDirectory(javaDir);
+            var javaPath = Path.Combine(javaDir, "MainActivity.java");
+            File.WriteAllText(javaPath, "package com.example.myapp; public class MainActivity {}");
+
+            var strategy = new AndroidGradleProjectStrategy();
+            var gitIgnoreParser = new GitIgnoreParser(tempDir);
+
+            // Act
+            var projects = strategy.DiscoverProjects(tempDir, gitIgnoreParser);
+
+            // Assert
+            Assert.NotEmpty(projects);
+            Assert.True(projects.ContainsKey("My Android App")); // Should extract from AndroidManifest.xml
+            Assert.Contains(projects["My Android App"], f => f.EndsWith("build.gradle"));
+            Assert.Contains(projects["My Android App"], f => f.EndsWith("AndroidManifest.xml"));
+            Assert.Contains(projects["My Android App"], f => f.EndsWith("MainActivity.java"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldFallbackToDirectoryName()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var projectDir = Path.Combine(tempDir, "my-gradle-app");
+            Directory.CreateDirectory(projectDir);
+
+            // Create a basic build.gradle file without manifest
+            var buildGradlePath = Path.Combine(projectDir, "build.gradle");
+            File.WriteAllText(buildGradlePath, "apply plugin: 'java'");
+
+            // Create Kotlin source file
+            var kotlinDir = Path.Combine(projectDir, "src", "main", "kotlin");
+            Directory.CreateDirectory(kotlinDir);
+            var kotlinPath = Path.Combine(kotlinDir, "Main.kt");
+            File.WriteAllText(kotlinPath, "fun main() { println(\"Hello World\") }");
+
+            var strategy = new AndroidGradleProjectStrategy();
+            var gitIgnoreParser = new GitIgnoreParser(tempDir);
+
+            // Act
+            var projects = strategy.DiscoverProjects(tempDir, gitIgnoreParser);
+
+            // Assert
+            Assert.NotEmpty(projects);
+            Assert.True(projects.ContainsKey("my-gradle-app")); // Should use directory name
+            Assert.Contains(projects["my-gradle-app"], f => f.EndsWith("build.gradle"));
+            Assert.Contains(projects["my-gradle-app"], f => f.EndsWith("Main.kt"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldExtractProjectNameFromSettings()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var projectDir = Path.Combine(tempDir, "gradle-project");
+            Directory.CreateDirectory(projectDir);
+
+            // Create settings.gradle with project name
+            var settingsGradlePath = Path.Combine(projectDir, "settings.gradle");
+            File.WriteAllText(settingsGradlePath, "rootProject.name = 'awesome-gradle-app'");
+
+            // Create build.gradle.kts (Kotlin DSL)
+            var buildGradlePath = Path.Combine(projectDir, "build.gradle.kts");
+            var buildGradleContent = @"
+plugins {
+    kotlin(""jvm"") version ""1.8.0""
+}
+
+repositories {
+    mavenCentral()
+}";
+            File.WriteAllText(buildGradlePath, buildGradleContent);
+
+            var strategy = new AndroidGradleProjectStrategy();
+            var gitIgnoreParser = new GitIgnoreParser(tempDir);
+
+            // Act
+            var projects = strategy.DiscoverProjects(tempDir, gitIgnoreParser);
+
+            // Assert
+            Assert.NotEmpty(projects);
+            Assert.True(projects.ContainsKey("awesome-gradle-app")); // Should extract from settings.gradle
+            Assert.Contains(projects["awesome-gradle-app"], f => f.EndsWith("build.gradle.kts"));
+            Assert.Contains(projects["awesome-gradle-app"], f => f.EndsWith("settings.gradle"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldHaveCorrectStrategyName()
+    {
+        // Arrange
+        var strategy = new AndroidGradleProjectStrategy();
+
+        // Act
+        var name = strategy.StrategyName;
+
+        // Assert
+        Assert.Equal("build.gradle", name);
+    }
 }

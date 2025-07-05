@@ -73,6 +73,7 @@ The test suite provides comprehensive coverage of:
 - Maven (pom.xml) project detection
 - PHP Composer (composer.json) project detection
 - Python (pyproject.toml) project detection
+- Android/Gradle (build.gradle) project detection
 - Project name extraction from configuration files
 - Fallback behavior for malformed files
 - Multi-project scenarios

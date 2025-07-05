@@ -437,4 +437,130 @@ temp/
             }
         }
     }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldHandleMalformedBuildGradle()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var projectDir = Path.Combine(tempDir, "broken-gradle-project");
+            Directory.CreateDirectory(projectDir);
+
+            // Create malformed build.gradle
+            var buildGradlePath = Path.Combine(projectDir, "build.gradle");
+            File.WriteAllText(buildGradlePath, "invalid gradle syntax {{{");
+
+            // Create valid source file
+            var javaDir = Path.Combine(projectDir, "src", "main", "java");
+            Directory.CreateDirectory(javaDir);
+            var javaPath = Path.Combine(javaDir, "Main.java");
+            File.WriteAllText(javaPath, "public class Main {}");
+
+            var strategy = new AndroidGradleProjectStrategy();
+            var gitIgnoreParser = new GitIgnoreParser(tempDir);
+
+            // Act - should not crash despite malformed build.gradle
+            var projects = strategy.DiscoverProjects(tempDir, gitIgnoreParser);
+
+            // Assert - should still discover the project using directory name
+            Assert.NotEmpty(projects);
+            Assert.True(projects.ContainsKey("broken-gradle-project"));
+            Assert.Contains(projects["broken-gradle-project"], f => f.EndsWith("build.gradle"));
+            Assert.Contains(projects["broken-gradle-project"], f => f.EndsWith("Main.java"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldHandleMalformedAndroidManifest()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var projectDir = Path.Combine(tempDir, "android-with-broken-manifest");
+            Directory.CreateDirectory(projectDir);
+
+            // Create valid build.gradle
+            var buildGradlePath = Path.Combine(projectDir, "build.gradle");
+            File.WriteAllText(buildGradlePath, "apply plugin: 'com.android.application'");
+
+            // Create malformed AndroidManifest.xml
+            var manifestDir = Path.Combine(projectDir, "src", "main");
+            Directory.CreateDirectory(manifestDir);
+            var manifestPath = Path.Combine(manifestDir, "AndroidManifest.xml");
+            File.WriteAllText(manifestPath, "<?xml version=\"1.0\"?><malformed><xml>");
+
+            var strategy = new AndroidGradleProjectStrategy();
+            var gitIgnoreParser = new GitIgnoreParser(tempDir);
+
+            // Act - should not crash despite malformed manifest
+            var projects = strategy.DiscoverProjects(tempDir, gitIgnoreParser);
+
+            // Assert - should fall back to directory name
+            Assert.NotEmpty(projects);
+            Assert.True(projects.ContainsKey("android-with-broken-manifest"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void AndroidGradleProjectStrategy_ShouldHandleMalformedSettingsGradle()
+    {
+        // Arrange
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var projectDir = Path.Combine(tempDir, "gradle-with-broken-settings");
+            Directory.CreateDirectory(projectDir);
+
+            // Create valid build.gradle.kts
+            var buildGradlePath = Path.Combine(projectDir, "build.gradle.kts");
+            File.WriteAllText(buildGradlePath, "plugins { kotlin(\"jvm\") }");
+
+            // Create malformed settings.gradle
+            var settingsPath = Path.Combine(projectDir, "settings.gradle");
+            File.WriteAllText(settingsPath, "rootProject.name = 'incomplete");
+
+            var strategy = new AndroidGradleProjectStrategy();
+            var gitIgnoreParser = new GitIgnoreParser(tempDir);
+
+            // Act - should not crash despite malformed settings
+            var projects = strategy.DiscoverProjects(tempDir, gitIgnoreParser);
+
+            // Assert - should find the project using extracted name from malformed settings
+            Assert.NotEmpty(projects);
+            var projectNames = projects.Keys.ToList();
+            Assert.Single(projectNames);
+            // The parser extracts "incomplete" from the malformed line "rootProject.name = 'incomplete"
+            Assert.True(projects.ContainsKey("incomplete"));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
+    }
 }
