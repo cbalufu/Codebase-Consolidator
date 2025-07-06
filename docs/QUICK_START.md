@@ -4,13 +4,34 @@ This guide will get you up and running with Codebase Consolidator in just a few 
 
 ## Installation
 
-### Windows
+### Global Tool Installation (Recommended)
+The easiest way to use Codebase Consolidator is to install it as a global .NET tool:
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/codebase-consolidator.git
+cd codebase-consolidator
+
+# Build and install globally
+dotnet pack src/Codebase-Consolidator -c Release
+dotnet tool install --global --add-source ./src/Codebase-Consolidator/nupkg Codebase-Consolidator
+
+# Verify installation
+consolidate --help
+
+# Use from anywhere
+consolidate /path/to/your/project
+```
+
+### Platform-Specific Installation
+
+#### Windows
 1. Download the latest release from GitHub
 2. Extract to a folder (e.g., `C:\Tools\Codebase-Consolidator`)
 3. Add the folder to your system PATH
 4. Open a new command prompt and run `consolidate --help`
 
-### macOS/Linux
+#### macOS/Linux
 1. Download the latest release
 2. Extract to `/usr/local/bin` or another directory in your PATH
 3. Make executable: `chmod +x consolidate`
@@ -84,9 +105,11 @@ consolidate . --include "**/appsettings*.json" --include "**/*.config"
 ### For Multi-Project Solutions
 ```bash
 # Split by technology
-consolidate . --split-by csproj     # Creates separate files for each C# project
+consolidate . --split-by csproj        # Creates separate files for each C# project
 consolidate . --split-by package.json  # Creates separate files for each Node.js project
+consolidate . --split-by pom.xml       # Creates separate files for each Maven project
 consolidate . --split-by build.gradle  # Creates separate files for each Android/Gradle project
+consolidate . --split-by pyproject.toml # Creates separate files for each Python project
 ```
 
 ## Tips and Tricks

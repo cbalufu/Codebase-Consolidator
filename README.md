@@ -1,7 +1,7 @@
 # Codebase Consolidator
 
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
-[![Tests](https://img.shields.io/badge/tests-40%20passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-54%20passing-brightgreen.svg)]()
 [![.NET](https://img.shields.io/badge/.NET-9.0-blue.svg)]()
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)]()
 
@@ -9,7 +9,7 @@ A powerful command-line tool that consolidates your entire codebase into a singl
 
 ## 🌟 Features
 
-- **Smart Project Discovery**: Automatically detects and organizes projects by type (C#, Node.js, Maven, PHP, Python)
+- **Smart Project Discovery**: Automatically detects and organizes projects by type (C#, Node.js, Maven, PHP, Python, Android/Gradle)
 - **Intelligent File Filtering**: Respects `.gitignore` files and provides custom include/exclude patterns
 - **Multiple Output Modes**: Single consolidated file, split by project type, or copy to clipboard
 - **AI-Ready Output**: Optimized formatting for AI assistants with token estimation
@@ -21,20 +21,25 @@ A powerful command-line tool that consolidates your entire codebase into a singl
 
 ### Installation
 
-#### Option 1: Download Release (Recommended)
+#### Option 1: Install as Global Tool (Recommended)
+```bash
+# Build and install the global tool
+dotnet pack src/Codebase-Consolidator -c Release
+dotnet tool install --global --add-source ./src/Codebase-Consolidator/nupkg Codebase-Consolidator
+
+# Use anywhere in your system
+consolidate --help
+consolidate /path/to/your/project
+```
+
+#### Option 2: Download Release
 Download the latest release from the [Releases page](https://github.com/your-username/codebase-consolidator/releases) and add it to your PATH.
 
-#### Option 2: Build from Source
+#### Option 3: Build from Source
 ```bash
 git clone https://github.com/your-username/codebase-consolidator.git
 cd codebase-consolidator
 dotnet build --configuration Release
-```
-
-#### Option 3: Install as Global Tool
-```bash
-dotnet pack src/Codebase-Consolidator
-dotnet tool install --global --add-source ./src/Codebase-Consolidator/nupkg Codebase-Consolidator
 ```
 
 ### Basic Usage
@@ -188,10 +193,10 @@ Codebase-Consolidator/
 
 ## 🧪 Testing
 
-The project includes a comprehensive test suite with 40+ tests covering:
+The project includes a comprehensive test suite with 54+ tests covering:
 
 - Core functionality and component integration
-- All project discovery strategies
+- All project discovery strategies (C#, Node.js, Maven, PHP, Python, Android/Gradle)
 - GitIgnore pattern parsing and file exclusion
 - Edge cases and error conditions
 - End-to-end CLI workflows
